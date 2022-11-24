@@ -1,0 +1,3 @@
+import getServiceAreas
+
+getServiceAreas.getAllServiceAreas()
