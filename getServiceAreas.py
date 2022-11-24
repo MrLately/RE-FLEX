@@ -1,28 +1,7 @@
 import requests
 from datetime import datetime
-import getAuth
-import debug
 import userdata.header_data as header_data
-
-
-def header_refresh():
-    with open("userdata/token", "w") as t:
-        print(getAuth.getAuthToken(),  end='', file=t)
-    current_header()
-
-def current_header():
-    with open("userdata/token", "r") as t:
-        token = t.read()
-        header_data.headers['x-amz-access-token'] = token
-
-def requestId_refresh():
-    header_data.headers['X-Amzn-RequestId'] = getAuth.requestIdSelfSingleUse()
-
-def manual_token():
-        token = getAuth.manualTokenRefresh()
-        header_data.headers['x-amz-access-token'] = token
-        with open('userdata/token', 'w') as t:
-            print(token, end='', file=t)
+import authCycle
 
 
 def __getAmzDate() -> str:
@@ -31,27 +10,9 @@ def __getAmzDate() -> str:
         """
     return datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
 
-def test():
-    requestId_refresh()
-    header_data.headers["X-Amz-Date"] = __getAmzDate()
-    lst = getAllServiceAreas()
-    if "serviceAreaPoolList" in lst:
-        pass
-    else:
-        raise
-
 def getEligibleServiceAreas():
-    try:
-        current_header()
-    except:
-        try:
-            debug.request_print()
-            header_refresh()
-        except:
-            debug.blocked_print()
-            manual_token()
 
-    requestId_refresh()
+    authCycle.requestId_refresh()
     header_data.headers["X-Amz-Date"] = __getAmzDate()
     response = requests.get(
     "https://flex-capacity-na.amazon.com/eligibleServiceAreas",
@@ -59,17 +20,8 @@ def getEligibleServiceAreas():
     return response.json().get("serviceAreaIds")
 
 def getAllServiceAreas():
-    try:
-        current_header()
-    except:
-        try:
-            debug.request_print()
-            header_refresh()
-        except:
-            debug.blocked_print()
-            manual_token()
 
-    requestId_refresh()
+    authCycle.requestId_refresh()
 
     header_data.headers["X-Amz-Date"] = __getAmzDate()
 

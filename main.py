@@ -1,15 +1,24 @@
-import requests, json, time, logging, random, yagmail
+import requests
+import json
+import time
+import logging
+import random
 from datetime import datetime, date
+import yagmail
 import userdata.serviceAreaIds as serviceAreaIds
 import userdata.header_data as header_data
 import userdata.json_data as json_data
-import getAuth, filters, debug, live_updates
+import filters
+import debug
+import live_updates
+import getServiceAreas
+import authCycle
 
 rapidrefresh = 3
 
 logging.basicConfig(format="%(asctime)s \n\t%(message)s", datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
 
-yag = yagmail.SMTP(user="extra-email", password="app-password")
+yag = yagmail.SMTP(user="extra-gmail", password="app-password")
 subject = "Work Available"
 session = requests.Session()
 
@@ -23,12 +32,22 @@ def email_alert(block):
     body = f"**CAUGHT A BLOCK**\n\nLocation: {station_name}\nPay: ${block_price}\nStart Time: {block_start}\nBlock Length: {block_length} hours\nRate: {block_rate}"
     yag.send(to='main-email', subject=subject, contents=body)
 
+
+def __getAmzDate() -> str:
+    """
+        Returns Amazon formatted timestamp as string
+        """
+    return datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+
+def up_DATE():
+    header_data.headers["X-Amz-Date"] = __getAmzDate()
+
 print('Scanning started at', time.strftime('%I:%M:%S %p'))
 
 
 def get_offer_list():
     # Requesting list of available blocks and returning either a filtered list of blocks or an error message
-    requestId_refresh()
+    authCycle.requestId_refresh()
     #client_time()
     global session
     response = session.post(
@@ -41,15 +60,10 @@ def get_offer_list():
     try:
         for block in j['offerList']:
             # Comment or uncomment bellow if you want to disable certain features
-            # Will print attempts
             live_updates.live_mode(block)
-            # Will save those attempts to file
             live_updates.print_history(block)
-            # Will print anything over 18 an hour
             debug.scan_print(block)
-            # Will print both baserate and outside of any filters set in json_data
-            debug.baserate_print(block)
-
+            #debug.baserate_print(block)
         return [accept_block(block) for block in j["offerList"] if filters.advanced_filter(block)]
     except KeyError:
         try:
@@ -79,48 +93,9 @@ def accept_block(block):
 
     return accept.status_code
 
-def header_refresh():
-    with open("userdata/token", "w") as t:
-        print(getAuth.getAuthToken(),  end='', file=t)
-    current_header()
-
-def current_header():
-    with open("userdata/token", "r") as t:
-        token = t.read()
-        header_data.headers['x-amz-access-token'] = token
-
-def requestId_refresh():
-    header_data.headers['X-Amzn-RequestId'] = getAuth.requestIdSelfSingleUse()
-
-def manual_token():
-        token = getAuth.manualTokenRefresh()
-        header_data.headers['x-amz-access-token'] = token
-        with open('userdata/token', 'w') as t:
-            print(token, end='', file=t)
-
-def test():
-    lst = get_offer_list()
-    if None in lst:
-        print('Token expired........', end='\r')
-        time.sleep(1)
-        raise Exception
-    else:
-        pass
-
 if __name__ == "__main__":
 
-    try:
-        print('Reading from file ...', end='\r')
-        time.sleep(1)
-        current_header()
-        test()
-    except:
-        try:
-            debug.request_print()
-            header_refresh()
-        except:
-            debug.blocked_print()
-            manual_token()
+    authCycle.authCycle()
 
     keepItUp = True
     while keepItUp:
@@ -135,19 +110,8 @@ if __name__ == "__main__":
                     keepItUp = False
                     break
             except TypeError:
-                try:
-                    print('Rereading from file .', end='\r')
-                    time.sleep(1)
-                    current_header()
-                    test()
-                except:
-                    try:
-                        debug.request_print()
-                        header_refresh()
-                    except:
-                        debug.blocked_print()
-                        manual_token()
-                '''
+                 authCycle.authCycle()
+            '''
             Refresh Speed:
             Use any range for whatever speeds you are looking for
             One method recomended no lower than one second for less risk of detection,
@@ -156,7 +120,7 @@ if __name__ == "__main__":
             and then when you see there are offers, use a faster speed to try and catch.
             you will end up being throttled when you reach rate limit until you
             wait, about an hour or more
-                '''
+            '''
             if(rapidrefresh<5):
                 rapidrefresh+=1
                 time.sleep(random.uniform(0.2, 0.6))
